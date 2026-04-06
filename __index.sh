@@ -1,13 +1,13 @@
 # will be imported by the index of the utils
 
-_POD_AUTOMATION_SCRIPT_DIR="$HOME/Documents/Github/pod-tooling"
+_POD_TOOLING_SCRIPT_DIR="$HOME/Documents/Github/pod-tooling"
 
-source $_POD_AUTOMATION_SCRIPT_DIR/fn-pod-cfr.sh
-source $_POD_AUTOMATION_SCRIPT_DIR/fn-pod-compress.sh
+source $_POD_TOOLING_SCRIPT_DIR/fn-pod-cfr.sh
+source $_POD_TOOLING_SCRIPT_DIR/fn-pod-compress.sh
 
 
 :pod-thumbnail() {
-    python3 "$_POD_AUTOMATION_SCRIPT_DIR/thumbnail/update-thumbnail.py" "$@"
+    python3 "$_POD_TOOLING_SCRIPT_DIR/thumbnail/update-thumbnail.py" "$@"
 }
 
 
