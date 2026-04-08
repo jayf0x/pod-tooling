@@ -25,12 +25,8 @@ MODEL_NAME = "yi:9b-chat-v1.5-q6_K" # +long context, meh_ok-quality,
 # MODEL_NAME = "spooknik/hermes-2-pro-mistral-7b:q8" # ..
 # MODEL_NAME = "qwen3:4b-thinking-2507-fp16" # insanely slo, but has thinking output which we don't want
 
-
-
-
 # TRY: MythoMax-L2
 # TRY?: OpenChat 3.6
-
 # -uncensored
 
 # ------- variable config ------- #

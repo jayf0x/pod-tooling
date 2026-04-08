@@ -1,10 +1,7 @@
-source $_POD_TOOLING_SCRIPT_DIR/fn-pod-cfr.sh
-source $_POD_TOOLING_SCRIPT_DIR/fn-pod-compress.sh
+_POD_TOOLING_SCRIPT_DIR_LEGACY="$_POD_TOOLING_SCRIPT_DIR/legacy"
 
-
-:pod-thumbnail() {
-    python3 "$_POD_TOOLING_SCRIPT_DIR/thumbnail/update-thumbnail.py" "$@"
-}
+source $_POD_TOOLING_SCRIPT_DIR_LEGACY/fn-pod-cfr.sh
+source $_POD_TOOLING_SCRIPT_DIR_LEGACY/fn-pod-compress.sh
 
 
 # sometimes files can have vfr and vbr and the audio is out of sync with the video and you can fix it by simply moving either as the rates are not in sync

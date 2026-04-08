@@ -1,0 +1,14 @@
+# blanc-beats dependencies
+
+# Core
+python-dotenv==1.1.0
+
+# Claude API (description generation)
+anthropic==0.52.0
+
+# YouTube upload
+google-api-python-client==2.166.0
+google-auth==2.38.0
+
+# Testing
+pytest==8.3.5

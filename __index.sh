@@ -2,4 +2,4 @@
 
 _POD_TOOLING_SCRIPT_DIR="$HOME/Documents/Github/pod-tooling"
 
-source $_POD_TOOLING_SCRIPT_DIR/functions/__index.sh
+source $_POD_TOOLING_SCRIPT_DIR/legacy/__index.sh
