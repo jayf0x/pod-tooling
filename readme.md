@@ -1,5 +1,6 @@
-# Pod tooling (Discontinued)
+# Pod tooling 
 
-Legacy tooling and prototyping for local private podcast editing, but became too irrelevant with the rise of tools like [Descript](https://web.descript.com/).
+Scripts to assist with daily pod cast and marketing related needs.
 
-> note: not all functionality is includes due to privacy.
+Capabilities:
+- Frame rate sync
