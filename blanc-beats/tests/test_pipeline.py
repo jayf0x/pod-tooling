@@ -9,39 +9,52 @@ import pipeline
 
 
 class TestPipeline:
-    """Integration tests for the full pipeline."""
+    """Integration tests for the pipeline."""
+
+    def test_generate_only(self, tmp_path, monkeypatch):
+        """--only generate runs only the generate stage with stub backend."""
+        monkeypatch.setattr("config.OUTPUT_DIR", tmp_path)
+
+        result = pipeline.run(
+            prompt="ambient test track",
+            run_id="test_gen_only",
+            only="generate",
+            music_model="stub",
+        )
+
+        assert result["run_id"] == "test_gen_only"
+        assert "error" not in result
+        assert result["stages"]["generate"]["status"] == "ok"
+        assert "rank" not in result["stages"]
+        assert "content" not in result["stages"]
+        assert "post" not in result["stages"]
 
     def test_full_pipeline_stub(self, tmp_path, monkeypatch):
-        """Full pipeline runs end-to-end with stub backends and skip_post."""
+        """Full pipeline runs end-to-end with stub generate and stub stages."""
         monkeypatch.setattr("config.OUTPUT_DIR", tmp_path)
-        monkeypatch.setattr("config.ANTHROPIC_API_KEY", "")
 
         result = pipeline.run(
             prompt="ambient test track",
             run_id="test_run_001",
-            skip_post=True,
             music_model="stub",
-            image_model="stub",
         )
 
         assert result["run_id"] == "test_run_001"
         assert "error" not in result
         assert result["stages"]["generate"]["status"] == "ok"
-        assert result["stages"]["rank"]["status"] == "ok"
-        assert result["stages"]["content"]["status"] == "ok"
-        assert result["stages"]["post"]["status"] == "skipped"
+        assert result["stages"]["rank"]["status"] == "stub"
+        assert result["stages"]["content"]["status"] == "stub"
+        assert result["stages"]["post"]["status"] == "stub"
 
     def test_manifest_written(self, tmp_path, monkeypatch):
         """Pipeline writes a manifest.json in the run directory."""
         monkeypatch.setattr("config.OUTPUT_DIR", tmp_path)
-        monkeypatch.setattr("config.ANTHROPIC_API_KEY", "")
 
         pipeline.run(
             prompt="test",
             run_id="test_manifest",
-            skip_post=True,
+            only="generate",
             music_model="stub",
-            image_model="stub",
         )
 
         manifest = tmp_path / "test_manifest" / "manifest.json"
@@ -49,25 +62,19 @@ class TestPipeline:
         data = json.loads(manifest.read_text())
         assert data["run_id"] == "test_manifest"
 
-    def test_run_creates_output_structure(self, tmp_path, monkeypatch):
-        """Pipeline creates the expected directory structure."""
+    def test_generate_creates_output_structure(self, tmp_path, monkeypatch):
+        """Generate stage creates the expected directory structure."""
         monkeypatch.setattr("config.OUTPUT_DIR", tmp_path)
-        monkeypatch.setattr("config.ANTHROPIC_API_KEY", "")
 
         pipeline.run(
             prompt="structure test",
             run_id="test_dirs",
-            skip_post=True,
+            only="generate",
             music_model="stub",
-            image_model="stub",
         )
 
         run_dir = tmp_path / "test_dirs"
         assert (run_dir / "generate").is_dir()
-        assert (run_dir / "rank").is_dir()
-        assert (run_dir / "content").is_dir()
-        assert (run_dir / "content" / "description.txt").exists()
-        assert (run_dir / "content" / "cover.png").exists()
 
     def test_make_run_id_format(self):
         """Run IDs follow the expected timestamp_uuid format."""
@@ -77,31 +84,22 @@ class TestPipeline:
         assert len(parts[0]) == 8  # YYYYMMDD
         assert len(parts[2]) == 6  # short uuid
 
-    def test_make_title_truncation(self):
-        """Long prompts get truncated in the title."""
-        long_prompt = "x" * 200
-        title = pipeline._make_title(long_prompt, max_len=50)
-        assert len(title) <= 50
-        assert title.endswith("...")
-
-    def test_make_title_short(self):
-        """Short prompts aren't truncated."""
-        title = pipeline._make_title("chill beat")
-        assert title == "Blanc Beats — chill beat"
-
-    def test_pipeline_with_post_dry_run(self, tmp_path, monkeypatch):
-        """Pipeline with posting enabled falls through to dry-run."""
+    def test_invalid_stage_raises(self, tmp_path, monkeypatch):
+        """Requesting an invalid --only stage raises ValueError."""
         monkeypatch.setattr("config.OUTPUT_DIR", tmp_path)
-        monkeypatch.setattr("config.ANTHROPIC_API_KEY", "")
 
-        result = pipeline.run(
-            prompt="post test",
-            run_id="test_post",
-            skip_post=False,
-            music_model="stub",
-            image_model="stub",
-        )
+        with pytest.raises(ValueError, match="Unknown stage"):
+            pipeline.run(prompt="test", only="nonexistent")
 
-        # Should succeed via dry-run (no credentials)
-        assert result["stages"]["post"]["status"] == "ok"
-        assert result["stages"]["post"].get("dry_run") is True
+    def test_ace_step_missing_weights_exits(self, tmp_path, monkeypatch):
+        """ACE-Step without model weights raises SystemExit."""
+        monkeypatch.setattr("config.OUTPUT_DIR", tmp_path)
+        monkeypatch.setattr("config.MODEL_DIR", tmp_path / "empty_models")
+
+        with pytest.raises(SystemExit, match="Missing ACE-Step"):
+            pipeline.run(
+                prompt="test",
+                run_id="test_ace_fail",
+                only="generate",
+                music_model="ace-step",
+            )

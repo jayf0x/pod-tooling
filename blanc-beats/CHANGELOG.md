@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-04-08 — Codebase refocus: Stage 1 only (real audio generation)
+
+### What
+Rewrote the entire codebase to match the updated PROMPT.md.
+Only the generate stage is active now; rank, content, and post are stubs.
+
+### Why
+Narrowing scope to Stage 1: prompt in → real audio file out.
+Everything else is deferred until audio generation is proven.
+
+### Details
+- **pipeline.py**: Added `--only` flag for single-stage execution, removed
+  old multi-stage orchestration. Rank/content/post print `[STUB]`.
+- **config.py**: Removed Claude API and YouTube config. Added Ollama, MODEL_DIR,
+  LOG_DIR. Added rotating file handler (logs/pipeline.log, 5 backups).
+- **generate/generator.py**: ACE-Step backend now uses Python pipeline API
+  (ace_step.pipeline) instead of CLI binary. Raises SystemExit with exact
+  install instructions if weights or packages are missing. Stub uses numpy +
+  soundfile (with wave stdlib fallback) and prints `[STUB]`.
+- **rank/, content/, post/**: Gutted to stub modules that print `[STUB]`.
+  Old ranker, describe, cover, and youtube code removed.
+- **setup_models.py**: New script to download ACE-Step weights from HuggingFace
+  Hub via snapshot_download().
+- **requirements.txt**: Removed anthropic, google-api-python-client, google-auth.
+  Added numpy, soundfile, huggingface-hub.
+- **.env.example**: Simplified for Stage 1. Added OLLAMA_MODEL, MODEL_DIR, LOG_DIR.
+- **.gitignore**: Added models/ and logs/.
+- **tests/**: Rewritten — 21 tests covering pipeline, generate, stubs, and
+  setup_models. Tests verify real behavior (file sizes, [STUB] markers, SystemExit).
+- **README.md**: Updated with model setup, new CLI usage, and current stage status.
+
 ## 2026-04-08 — MVP: Full pipeline scaffold
 
 ### What

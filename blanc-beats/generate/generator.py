@@ -3,13 +3,14 @@ from __future__ import annotations
 """
 Music generation stage.
 
-Generates N audio variants from a text prompt using a local model
-(ACE-Step, HeartMuLa, etc.). The backend is swappable via config.MUSIC_MODEL.
+Generates N audio variants from a text prompt using a local model.
+Primary target: ACE-Step 1.5 via HuggingFace/diffusers.
+Fallback: stub that prints [STUB] so it's obvious nothing real ran.
+
+Returns a list of Variant dataclasses pointing to the generated .wav files.
 """
 
 import logging
-import subprocess
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -47,6 +48,10 @@ def generate_variants(
 
     Returns:
         List of Variant objects, one per generated file.
+
+    Raises:
+        ValueError: If model is not in the backend registry.
+        SystemExit: If model weights are missing (with install instructions).
     """
     n = n or config.VARIANTS_PER_RUN
     model = model or config.MUSIC_MODEL
@@ -73,33 +78,76 @@ def generate_variants(
 def _generate_ace_step(
     prompt: str, gen_dir: Path, n: int, model: str
 ) -> list[Variant]:
-    """Generate variants using the ACE-Step CLI.
+    """Generate variants using ACE-Step 1.5 via the ace-step Python package.
 
-    Expects `ace-step` to be on PATH or configured via ACE_STEP_BIN env var.
+    Expects model weights in config.MODEL_DIR / 'ACE-Step'.
+    If weights are missing, raises SystemExit with exact install instructions.
+
+    Args:
+        prompt: Text description of the desired music.
+        gen_dir: Output directory for .wav files.
+        n: Number of variants to generate.
+        model: Model name for metadata.
+
+    Returns:
+        List of Variant objects.
+
+    Raises:
+        SystemExit: If ace-step package or model weights are not available.
     """
-    import os
+    model_dir = config.MODEL_DIR / "ACE-Step"
 
-    ace_bin = os.getenv("ACE_STEP_BIN", "ace-step")
-
-    if not shutil.which(ace_bin):
-        logger.warning(
-            "ACE-Step binary '%s' not found on PATH — falling back to stub.",
-            ace_bin,
+    if not model_dir.exists():
+        logger.error(
+            "ACE-Step model weights not found at %s. "
+            "Run: python setup_models.py",
+            model_dir,
         )
-        return _generate_stub(prompt, gen_dir, n, model)
+        raise SystemExit(
+            f"Missing ACE-Step model weights at {model_dir}.\n"
+            "Fix: run `python setup_models.py` to download them."
+        )
+
+    try:
+        import soundfile as sf
+    except ImportError:
+        logger.error("soundfile not installed. Run: pip install soundfile")
+        raise SystemExit(
+            "Missing dependency: soundfile.\n"
+            "Fix: run `pip install -r requirements.txt`"
+        )
+
+    # REASON: ACE-Step inference is done via its pipeline API.
+    # We import lazily so the rest of the codebase works without it installed.
+    try:
+        from ace_step.pipeline import ACEStepPipeline
+    except ImportError:
+        logger.error(
+            "ace-step package not installed. "
+            "Run: pip install ace-step"
+        )
+        raise SystemExit(
+            "Missing dependency: ace-step.\n"
+            "Fix: run `pip install ace-step`"
+        )
+
+    logger.info("Loading ACE-Step pipeline from %s", model_dir)
+    pipe = ACEStepPipeline(model_dir=str(model_dir))
 
     variants: list[Variant] = []
     for i in range(n):
         out_path = gen_dir / f"variant_{i:03d}.wav"
-        cmd = [ace_bin, "--prompt", prompt, "--output", str(out_path)]
-        logger.info("Running: %s", " ".join(cmd))
+        logger.info("Generating variant %d/%d", i + 1, n)
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            # REASON: ACE-Step returns audio as a numpy array + sample rate.
+            # We write it out with soundfile for clean WAV output.
+            audio, sr = pipe.generate(prompt=prompt)
+            sf.write(str(out_path), audio, sr)
             variants.append(Variant(path=out_path, prompt=prompt, model=model))
-        except subprocess.CalledProcessError as exc:
+            logger.info("Wrote variant: %s", out_path)
+        except Exception as exc:
             logger.error(
-                "ACE-Step failed for variant %d: %s\nstderr: %s",
-                i, exc, exc.stderr,
+                "ACE-Step failed for variant %d: %s", i, exc, exc_info=True
             )
     return variants
 
@@ -107,41 +155,49 @@ def _generate_ace_step(
 def _generate_stub(
     prompt: str, gen_dir: Path, n: int, model: str
 ) -> list[Variant]:
-    """Stub backend that writes minimal WAV files for testing.
+    """Stub backend — prints [STUB] and writes minimal WAV files for testing.
 
     Produces valid WAV headers with 1 second of silence at 44100 Hz, 16-bit mono.
+    Uses soundfile if available, falls back to the wave stdlib module.
+
+    Args:
+        prompt: Text description (stored in metadata).
+        gen_dir: Output directory for .wav files.
+        n: Number of variants to generate.
+        model: Model name (overridden to 'stub' in metadata).
+
+    Returns:
+        List of Variant objects.
     """
-    import struct
+    import numpy as np
+
+    print("[STUB] generate stage — writing silent test WAVs")
 
     sample_rate = 44100
-    num_samples = sample_rate  # 1 second
-    bits_per_sample = 16
-    num_channels = 1
-    byte_rate = sample_rate * num_channels * bits_per_sample // 8
-    block_align = num_channels * bits_per_sample // 8
-    data_size = num_samples * block_align
+    duration_s = 1
+    samples = np.zeros(sample_rate * duration_s, dtype=np.float32)
+
+    try:
+        import soundfile as sf
+        writer = lambda path, data, sr: sf.write(str(path), data, sr)
+    except ImportError:
+        # Fallback: use stdlib wave module
+        import struct
+        import wave as wave_mod
+
+        def writer(path, data, sr):
+            """Write float32 samples as 16-bit WAV via stdlib."""
+            int_data = (data * 32767).astype(np.int16)
+            with wave_mod.open(str(path), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sr)
+                wf.writeframes(int_data.tobytes())
 
     variants: list[Variant] = []
     for i in range(n):
         out_path = gen_dir / f"variant_{i:03d}.wav"
-        with open(out_path, "wb") as f:
-            # WAV header
-            f.write(b"RIFF")
-            f.write(struct.pack("<I", 36 + data_size))
-            f.write(b"WAVE")
-            # fmt chunk
-            f.write(b"fmt ")
-            f.write(struct.pack("<I", 16))  # chunk size
-            f.write(struct.pack("<H", 1))   # PCM
-            f.write(struct.pack("<H", num_channels))
-            f.write(struct.pack("<I", sample_rate))
-            f.write(struct.pack("<I", byte_rate))
-            f.write(struct.pack("<H", block_align))
-            f.write(struct.pack("<H", bits_per_sample))
-            # data chunk
-            f.write(b"data")
-            f.write(struct.pack("<I", data_size))
-            f.write(b"\x00" * data_size)
+        writer(out_path, samples, sample_rate)
         variants.append(
             Variant(
                 path=out_path,

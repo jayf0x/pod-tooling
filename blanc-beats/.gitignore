@@ -14,6 +14,12 @@ build/
 # Outputs
 outputs/
 
+# Models (downloaded weights)
+models/
+
+# Logs
+logs/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -28,3 +34,5 @@ client_secrets.json
 
 
 .venv
+
+
